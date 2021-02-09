@@ -15,7 +15,7 @@
  */
 'use strict';
 
-const Keycloak = require('../../../');
+const Keycloak = require('../../../index');
 const bodyParser = require('body-parser');
 const hogan = require('hogan-express');
 const express = require('express');

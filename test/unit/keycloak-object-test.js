@@ -17,7 +17,7 @@
 'use strict';
 
 const test = require('tape');
-const Keycloak = require('../../');
+const Keycloak = require('../../index');
 const UUID = require('../../uuid');
 const session = require('express-session');
 

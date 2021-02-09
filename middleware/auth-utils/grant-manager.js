@@ -24,6 +24,10 @@ const Grant = require('./grant');
 const Token = require('./token');
 var Rotation = require('./rotation');
 
+
+
+const httpsAgent = new https.Agent({ keepAlive: true })
+const httpAgent  = new http.Agent({ keepAlive: true })
 /**
  * Construct a grant manager.
  *
@@ -141,6 +145,7 @@ GrantManager.prototype.checkPermissions = function obtainPermissions (authzReque
       if (request.kauth && request.kauth.grant && request.kauth.grant.access_token) {
         bearerToken = request.kauth.grant.access_token.token;
       } else {
+        console.log('Error in keycloack checkPermissions when no beared is present in header', {kauth: request.kauth});
         return Promise.reject(new Error('No bearer in header'));
       }
     }
@@ -407,7 +412,12 @@ GrantManager.prototype.validateGrant = function validateGrant (grant) {
  *
  * If the token is valid the promise will be resolved with the token
  *
- * If the token is undefined or fails validation an applicable error is returned
+ * If any of the following errors are seen the promise will resolve with undefined:
+ *
+ * - The token was undefined in the first place.
+ * - The token is expired.
+ * - The token is not expired, but issued before the current *not before* timestamp.
+ * - The token signature does not verify against the known realm public-key.
  *
  * @return {Promise} That resolve a token
  */
@@ -460,6 +470,10 @@ const getProtocol = (opts) => {
   return opts.protocol === 'https:' ? https : http;
 };
 
+const getAgent = (opts) => {
+  return opts.protocol === 'https:' ? httpsAgent : httpAgent;
+};
+
 const nodeify = (promise, cb) => {
   if (typeof cb !== 'function') return promise;
   return promise.then((res) => cb(null, res)).catch((err) => cb(err));
@@ -503,7 +517,7 @@ const fetch = (manager, handler, options, params) => {
   return new Promise((resolve, reject) => {
     const data = (typeof params === 'string' ? params : querystring.stringify(params));
     options.headers['Content-Length'] = data.length;
-
+    options.agent = getAgent(options)
     const req = getProtocol(options).request(options, (response) => {
       if (response.statusCode < 200 || response.statusCode > 299) {
         return reject(new Error(response.statusCode + ':' + http.STATUS_CODES[ response.statusCode ]));

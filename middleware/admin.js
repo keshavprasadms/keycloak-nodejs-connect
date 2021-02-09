@@ -38,63 +38,51 @@ function adminLogout (request, response, keycloak) {
   });
 
   request.on('end', function () {
-    let token = new Token(data);
-    let signature;
+    let payload;
+    let parts = data.split('.');
     try {
-      signature = new Signature(keycloak.config);
-      signature.verify(token).then(token => {
-        if (token.content.action === 'LOGOUT') {
-          let sessionIDs = token.content.adapterSessionIds;
-          if (!sessionIDs) {
-            keycloak.grantManager.notBefore = token.content.notBefore;
+      payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+    } catch (e) {
+      response.status(400).end();
+      return;
+    }
+    if (payload.action === 'LOGOUT') {
+      let sessionIDs = payload.adapterSessionIds;
+      if (!sessionIDs) {
+        keycloak.grantManager.notBefore = payload.notBefore;
+        response.send('ok');
+        return;
+      }
+      if (sessionIDs && sessionIDs.length > 0) {
+        let seen = 0;
+        sessionIDs.forEach(id => {
+          keycloak.unstoreGrant(id);
+          ++seen;
+          if (seen === sessionIDs.length) {
             response.send('ok');
             return;
           }
-          if (sessionIDs && sessionIDs.length > 0) {
-            let seen = 0;
-            sessionIDs.forEach(id => {
-              keycloak.unstoreGrant(id);
-              ++seen;
-              if (seen === sessionIDs.length) {
-                response.send('ok');
-              }
-            });
-          } else {
-            response.send('ok');
-          }
-        } else {
-          response.status(400).end();
-        }
-      }).catch((err) => {
-        response.status(401).end(err.message);
-      });
-    } catch (err) {
-      response.status(400).end(err.message);
+        });
+      } else {
+        response.send('ok');
+      }
     }
   });
 }
 
 function adminNotBefore (request, response, keycloak) {
   let data = '';
+
   request.on('data', d => {
     data += d.toString();
   });
 
   request.on('end', function () {
-    let token = new Token(data);
-    let signature;
-    try {
-      signature = new Signature(keycloak.config);
-      signature.verify(token).then(token => {
-        if (token.content.action === 'PUSH_NOT_BEFORE') {
-          keycloak.grantManager.notBefore = token.content.notBefore;
-          response.send('ok');
-        }
-      }).catch((err) => {
-        response.status(401).end(err.message);
-      });
-    } catch (err) {
-      response.status(400).end(err.message);
+    let parts = data.split('.');
+    let payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+    if (payload.action === 'PUSH_NOT_BEFORE') {
+      keycloak.grantManager.notBefore = payload.notBefore;
+      response.send('ok');
     }
   });
 }
